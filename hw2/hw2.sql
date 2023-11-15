@@ -13,16 +13,40 @@ from Purchasing.Suppliers suppliers
 except
 select orders.SupplierID from Purchasing.PurchaseOrders orders)
 
--- 3. Заказы (Orders) с ценой товара (UnitPrice) более 100$ либо количеством единиц (Quantity) товара более 20 штуки
---    присутствующей датой комплектации всего заказа (PickingCompletedWhen).
+/*
+3. Заказы (Orders) с ценой товара (UnitPrice) более 100$ 
+либо количеством единиц (Quantity) товара более 20 штук
+и присутствующей датой комплектации всего заказа (PickingCompletedWhen).
+Вывести:
+* OrderID
+* дату заказа (OrderDate) в формате ДД.ММ.ГГГГ
+* название месяца, в котором был сделан заказ
+* номер квартала, в котором был сделан заказ
+* треть года, к которой относится дата заказа (каждая треть по 4 месяца)
+* имя заказчика (Customer)
+Добавьте вариант этого запроса с постраничной выборкой,
+пропустив первую 1000 и отобразив следующие 100 записей.
 
-select o.OrderID, so.Description, so.UnitPrice, so.Quantity, so.PickingCompletedWhen  from Sales.Orders o
+Сортировка должна быть по номеру квартала, трети года, дате заказа (везде по возрастанию).
+
+Таблицы: Sales.Orders, Sales.OrderLines, Sales.Customers.
+*/
+
+select 
+o.OrderID as OrderId, 
+format(o.OrderDate, 'dd.MM.yyyy') as OrderDate,
+datename(month, o.OrderDate) as MonthFullName,
+datename(quarter, o.OrderDate) QuarterNumber,
+cast(ceiling(cast(month(o.OrderDate) as decimal(4,2)) / 4) as char(1)) as ThreePartNumber,
+sc.CustomerName as Customer
+from Sales.Orders o
 join Sales.OrderLines so on o.OrderID = so.OrderID
-where o.OrderID in 
-(select distinct ol.OrderID from Sales.OrderLines ol 
-where (ol.UnitPrice > 100
-or ol.Quantity > 20)
-and ol.PickingCompletedWhen is not null)
+join Sales.Customers sc on o.CustomerID = sc.CustomerID
+where (so.UnitPrice > 100 or so.Quantity > 20)
+and so.PickingCompletedWhen is not null
+order by QuarterNumber, ThreePartNumber, o.OrderDate asc
+offset 1000 rows
+fetch next 100 rows only
 
 -- 4. Заказы поставщикам (Purchasing.Suppliers), которые должны быть исполнены (ExpectedDeliveryDate) в январе 2013 года с
 -- доставкой "Air Freight" или "Refrigerated Air Freight" (DeliveryMethodName) и которые исполнены (IsOrderFinalized).

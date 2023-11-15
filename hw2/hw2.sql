@@ -16,7 +16,8 @@ select orders.SupplierID from Purchasing.PurchaseOrders orders)
 -- 3. Заказы (Orders) с ценой товара (UnitPrice) более 100$ либо количеством единиц (Quantity) товара более 20 штуки
 --    присутствующей датой комплектации всего заказа (PickingCompletedWhen).
 
-select * from Sales.Orders o
+select o.OrderID, so.Description, so.UnitPrice, so.Quantity, so.PickingCompletedWhen  from Sales.Orders o
+join Sales.OrderLines so on o.OrderID = so.OrderID
 where o.OrderID in 
 (select distinct ol.OrderID from Sales.OrderLines ol 
 where (ol.UnitPrice > 100
@@ -28,16 +29,17 @@ and ol.PickingCompletedWhen is not null)
 
 select po.PurchaseOrderID, po.SupplierID, ps.SupplierName from Purchasing.PurchaseOrders po
 join  Application.DeliveryMethods dm
-on po.DeliveryMethodID = dm.DeliveryMethodID and (dm.DeliveryMethodName = 'Air Freight' or dm.DeliveryMethodName = 'Refrigerated Air Freight')
+on po.DeliveryMethodID = dm.DeliveryMethodID 
 join Purchasing.Suppliers ps on ps.SupplierID = po.SupplierID
 where year(po.ExpectedDeliveryDate) = 2013
 and MONTH(po.ExpectedDeliveryDate) = 1
 and po.IsOrderFinalized = 1
+and (dm.DeliveryMethodName = 'Air Freight' or dm.DeliveryMethodName = 'Refrigerated Air Freight')
 
 -- 5. Десять последних продаж (по дате продажи) с именем клиента и именем сотрудника, который оформил заказ
 --    (SalespersonPerson). Сделать без подзапросов.
 
-select top 10 
+select top 10 with ties
 so.OrderID, 
 so.OrderDate, 
 sc.CustomerName, 
@@ -50,20 +52,10 @@ order by so.OrderDate desc, so.OrderID desc
 
 -- 6. Все ид и имена клиентов и их контактные телефоны, которые покупали товар "Chocolate frogs 250g".
 
-select ap.PersonID, ap.FullName, ap.PhoneNumber, ap.EmailAddress from Application.People ap
-where ap.PersonID in
-	(select 
-	distinct sc.PrimaryContactPersonID as PersonID
-	from Sales.OrderLines sol
-	join Warehouse.StockItems ws on sol.StockItemID = ws.StockItemID
-	join Sales.Orders so on sol.OrderID = so.OrderID 
-	join Sales.Customers sc on so.CustomerID = sc.CustomerID
-	where ws.StockItemName = 'Chocolate frogs 250g'
-	union
-	select 
-	distinct sc.AlternateContactPersonID as PersonID
-	from Sales.OrderLines sol
-	join Warehouse.StockItems ws on sol.StockItemID = ws.StockItemID
-	join Sales.Orders so on sol.OrderID = so.OrderID 
-	join Sales.Customers sc on so.CustomerID = sc.CustomerID
-	where ws.StockItemName = 'Chocolate frogs 250g')
+select distinct ap.PersonID, ap.FullName, ap.PhoneNumber, ap.EmailAddress
+from Sales.OrderLines sol
+join Warehouse.StockItems ws on sol.StockItemID = ws.StockItemID
+join Sales.Orders so on sol.OrderID = so.OrderID 
+join Sales.Customers sc on so.CustomerID = sc.CustomerID
+join Application.People ap on (ap.PersonID = sc.PrimaryContactPersonID or ap.PersonID = sc.AlternateContactPersonID)
+where ws.StockItemName = 'Chocolate frogs 250g'

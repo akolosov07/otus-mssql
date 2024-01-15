@@ -40,7 +40,7 @@ InvoiceMonth | Peeples Valley, AZ | Medicine Lodge, KS | Gasport, NY | Sylvanite
 */
 
 select 
-InvoiceMonth,
+format(InvoiceMonth, 'dd.MM.yyyy'),
 isnull([Sylvanite, MT], 0) as [Sylvanite, MT],
 isnull([Peeples Valley, AZ], 0) as [Peeples Valley, AZ],
 isnull([Medicine Lodge, KS], 0) as [Medicine Lodge, KS],
@@ -57,15 +57,15 @@ from
 		when 6 then 'Jessie, ND'
 		else ''
 	end as CustomerName,
-	InvoiceMonth = FORMAT(DATEFROMPARTS(YEAR(i.InvoiceDate),MONTH(i.InvoiceDate),1), 'dd.MM.yyyy'),
-	TotalSum = sum(ol.Quantity) 
+	InvoiceMonth = datetrunc(month, i.InvoiceDate),
+	TotalInvoices = sum(i.InvoiceID) 
 	from Sales.Invoices i
-	join Sales.OrderLines ol on i.OrderID = ol.OrderID
 	join Sales.Customers c on i.CustomerID = c.CustomerID
 	where i.CustomerID >= 2 and i.CustomerID <= 6
-	group by i.CustomerID, c.CustomerName, DATEFROMPARTS(YEAR(i.InvoiceDate),MONTH(i.InvoiceDate),1)
+	group by i.CustomerID, c.CustomerName, datetrunc(month, i.InvoiceDate)
+	
 ) as Data
-pivot (sum(TotalSum) for CustomerName
+pivot (sum(TotalInvoices) for CustomerName
 	in (
 	[Sylvanite, MT],
 	[Peeples Valley, AZ],
@@ -147,17 +147,21 @@ select c.CustomerID,
 c.CustomerName,
 o2.StockItemID,
 o2.UnitPrice,
-o2.InvoiceDate
+o2.InvoiceDate,
+o2.Rank
 FROM Sales.Customers c
-CROSS APPLY (SELECT TOP 2 
-				StockItemID = ol.StockItemID,
-				UnitPrice = ol.UnitPrice,
-				InvoiceDate = i.InvoiceDate
-                FROM Sales.OrderLines ol
-				join Sales.Orders o 
-				on o.OrderID = ol.OrderID
-				join Sales.Invoices i 
-				on i.OrderID = o.OrderID 
-                WHERE o.CustomerID = c.CustomerID
-                ORDER BY ol.UnitPrice DESC) AS o2
+CROSS APPLY (SELECT
+    o.CustomerID,
+	StockItemID = ol.StockItemID,
+	UnitPrice = ol.UnitPrice,
+	InvoiceDate = i.InvoiceDate,
+	Rank = DENSE_RANK() over (partition by o.CustomerId order by ol.UnitPrice desc)
+    FROM Sales.OrderLines ol
+	join Sales.Orders o 
+	on o.OrderID = ol.OrderID
+	join Sales.Invoices i 
+	on i.OrderID = o.OrderID  
+    WHERE o.CustomerID = c.CustomerID
+	) AS o2
+where o2.Rank <= 2 
 ORDER BY C.CustomerName;
